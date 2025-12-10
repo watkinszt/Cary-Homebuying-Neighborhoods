@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cary Homebuying Neighborhoods</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- 1. Load Leaflet and Font Awesome stylesheets -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.14.0/css/all.css">
+
+  <!-- 2. Basic page + layout styles -->
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    /* Layout: title on top, map + side panel below */
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top title block */
+    #page-title {
+      text-align: center;
+      padding: 10px 8px;
+      background: #ffffff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+      z-index: 1000;
+    }
+    #page-title h1 {
+      margin: 0;
+      font-size: 26px;   
+    }
+    #page-title p {
+      margin: 3px 0 0 0;
+      font-size: 14px;
+      color: #555;
+    }
+
+    /* Container for map + info panel */
+    #container {
+      flex: 1;
+      display: flex;
+      min-height: 0;      
+    }
+
+    /* Map takes left side */
+    #map {
+      flex: 2;            
+    }
+
+    /* Neighborhood details on the right */
+    #info-panel {
+      flex: 1;            
+      max-width: 35%;
+      min-width: 30%;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      background: #f7f7f7;
+      border-left: 1px solid #ccc;
+      overflow-y: auto;
+    }
+
+    #info-panel h2 {
+      margin-top: 0;
+      font-size: 22px;     
+    }
+
+    #info-panel .info-label {
+      font-weight: bold;
+    }
+
+    #info-panel .info-block {
+      margin-bottom: 8px;
+      font-size: 18px;     
+      line-height: 1.4;
+    }
+
+    #info-panel p {
+      font-size: 17px;
+      line-height: 1.4;
+    }
+
+    /* Legend styling */
+    .info.legend {
+      background: rgba(255,255,255,0.95);
+      padding: 12px 14px;
+      font: 16px/20px Arial, sans-serif;
+      box-shadow: 0 0 8px rgba(0,0,0,0.3);
+      border-radius: 4px;
+    }
+    .info.legend h4 {
+      margin: 0 0 8px 0;
+      font-size: 17px;
+    }
+    .legend-color-box {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      margin-right: 8px;
+      border: 1px solid #000;
+      vertical-align: middle;
+    }
+
+    /* Font Awesome house markers */
+    .house-icon {
+      text-shadow: 0 0 4px rgba(0,0,0,0.6);
+      font-size: 22px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 3. Page title + project description -->
+<header id="page-title">
+  <h1>Cary Homebuying Neighborhoods</h1>
+  <p>This web map summarizes typical housing characteristics for a sample of neighborhoods in Cary, North Carolina.</p>
+  <p>
+    It accompanies the article
+    <em><a href="https://hodgekittrellsir.com/blog/8-things-to-consider-before-moving-to-cary-nc" target="_blank">
+      “8 Things to Consider Before Moving to Cary, NC”
+    </a></em>
+    by Hodge &amp; Kittrell Sotheby’s International Realty.
+  </p>
+</header>
+
+<!-- 4. Main layout: map on the left, details panel on the right -->
+<div id="container">
+  <div id="map"></div>
+
+  <aside id="info-panel">
+    <h2>Neighborhood details</h2>
+    <div id="info-content">
+      <p>
+        Click a house icon on the map to see housing type, price category, build era,
+        typical number of bedrooms, notes, and data sources for that neighborhood.
+      </p>
+    </div>
+  </aside>
+</div>
+
+<!-- 5. Load Leaflet JavaScript -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+
+/////////////////
+// 1. Initialize the map & basemap
+/////////////////
+
+// 1a. Create the Leaflet map centered on Cary, NC
+var map = L.map('map').setView([35.79, -78.82], 12);
+
+// 1b. Add an OpenStreetMap basemap
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+// 1c. Add a scale bar (metric + imperial)
+L.control.scale({position: 'bottomleft', metric: true, imperial: true}).addTo(map);
+
+/////////////////
+// 2. Symbology - color ramp and house icons
+/////////////////
+
+// 2a. Define a discrete blue → purple color scheme for price categories
+//     low = light blue, mid = medium blue, high = dark blue, luxury = deep purple
+function getPriceColor(price_cat) {
+  if (price_cat === 'low')    return '#9ecae1';
+  if (price_cat === 'mid')    return '#6baed6';
+  if (price_cat === 'high')   return '#3182bd';
+  if (price_cat === 'luxury') return '#54278f';
+  return '#666666';
+}
+
+// 2b. Define a Font Awesome house icon, colored by price category
+function neighborhoodIcon(feature) {
+  var props = feature.properties || {};
+  var price_cat = props.price_cat;
+  var color = getPriceColor(price_cat);
+
+  return L.divIcon({
+    className: '',          
+    iconSize: [26, 26],
+    html: '<i class="fas fa-home house-icon" style="color:' + color + ';"></i>'
+  });
+}
+
+/////////////////
+// 3. Interaction - update the right-hand details panel
+/////////////////
+
+// 3a. This function fills in the details panel using the clicked feature's attributes
+function updateInfoPanel(props) {
+  var contentDiv = document.getElementById('info-content');
+
+  // If no feature is provided, show default instructions
+  if (!props) {
+    contentDiv.innerHTML =
+      '<p>Click a house icon on the map to see housing type, price category, build era, bedrooms, and notes for that neighborhood.</p>';
+    return;
+  }
+
+  // Grab all of the attributes created in QGIS
+  var name = props.name || 'Neighborhood';
+  var type = props.type || 'n/a';
+  var price_cat = props.price_cat || 'n/a';
+  var year_cat = props.year_cat || 'n/a';
+  var beds = (props.beds !== null && props.beds !== undefined) ? props.beds : 'n/a';
+  var notes = props.notes || '';
+  var source = props.source || '';
+
+  // Build the HTML for the panel
+  var html =
+    '<div class="info-block"><span class="info-label">Name:</span> ' + name + '</div>' +
+    '<div class="info-block"><span class="info-label">Type:</span> ' + type + '</div>' +
+    '<div class="info-block"><span class="info-label">Price category:</span> ' + price_cat + '</div>' +
+    '<div class="info-block"><span class="info-label">Year category:</span> ' + year_cat + '</div>' +
+    '<div class="info-block"><span class="info-label">Typical beds:</span> ' + beds + '</div>';
+
+  if (notes) {
+    html += '<div class="info-block"><span class="info-label">Notes:</span> ' + notes + '</div>';
+  }
+  if (source) {
+    html += '<div class="info-block"><span class="info-label">Source:</span> ' + source + '</div>';
+  }
+
+  // Insert the HTML into the info panel
+  contentDiv.innerHTML = html;
+}
+
+/////////////////
+// 4. Load neighborhood GeoJSON and add markers
+/////////////////
+
+// 4a. Path to exported QGIS point data (neighborhood centroids and attributes)
+fetch('assets/cary_homebuying_neighborhoods.geojson')
+  .then(function(response) {
+    return response.json();
+  })
+  .then(function(data) {
+    console.log('Loaded features:', data.features ? data.features.length : 'no features field');
+
+    // 4b. Create a Leaflet GeoJSON layer to display neighborhoods
+    var neighborhoodLayer = L.geoJSON(data, {
+      // Convert each point feature into a house icon marker
+      pointToLayer: function(feature, latlng) {
+        return L.marker(latlng, { icon: neighborhoodIcon(feature) });
+      },
+      // Set up interaction: clicking a marker updates the info panel
+      onEachFeature: function(feature, layer) {
+        var props = feature.properties || {};
+
+        // No Leaflet popup; instead, update the right-hand panel
+        layer.on('click', function() {
+          updateInfoPanel(props);
+        });
+      }
+    }).addTo(map);
+
+    // 4c. Zoom the map to show all neighborhoods
+    map.fitBounds(neighborhoodLayer.getBounds(), { padding: [20, 20] });
+
+    // 4d. Add a legend describing the price categories and approximate price ranges
+    addLegend();
+  });
+
+/////////////////
+// 5. Legend - explain the price categories and typical price ranges
+/////////////////
+
+function addLegend() {
+  // Create a Leaflet control positioned in the bottom-right
+  var legend = L.control({ position: 'bottomright' });
+
+  // This runs when the legend is added to the map
+  legend.onAdd = function(map) {
+    var div = L.DomUtil.create('div', 'info legend');
+
+    // Category labels + approximate price ranges
+    var categories = ['low', 'mid', 'high', 'luxury'];
+    var labels = [
+      'Low (under ~$400k)',
+      'Mid (~$400k–$600k)',
+      'High (~$600k–$800k)',
+      'Luxury (over ~$800k)'
+    ];
+
+    div.innerHTML = '<h4>Price category</h4>';
+    div.innerHTML += '<div style="margin-bottom:6px;font-size:13px;">Approximate typical home values</div>';
+
+    // Build a color swatch + label for each category
+    for (var i = 0; i < categories.length; i++) {
+      var cat = categories[i];
+      var color = getPriceColor(cat);
+      var label = labels[i];
+
+      div.innerHTML +=
+        '<div><span class="legend-color-box" style="background:' + color + ';"></span>' +
+        label + '</div>';
+    }
+
+    return div;
+  };
+
+  legend.addTo(map);
+}
+
+</script>
+</body>
+</html>
