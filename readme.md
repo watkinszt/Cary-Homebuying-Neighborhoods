@@ -1,5 +1,15 @@
 # Cary Homebuying Neighborhoods
 
+## Summary
+
+This web map explores a sample of homebuying neighborhoods in Cary, North Carolina. It is designed for prospective buyers who want to understand where different parts of town fall in terms of housing type, typical price, and build era, rather than focusing on individual listings.
+
+The project was inspired by the article *“8 Things to Consider Before Moving to Cary, NC”* by Hodge & Kittrell Sotheby’s International Realty, which highlights schools, amenities, and neighborhoods as key reasons people relocate to Cary. This map adds a spatial perspective to that discussion.
+
+Neighborhood boundaries were downloaded from OpenStreetMap using Overpass Turbo and then filtered in QGIS from roughly 150 neighborhoods down to about 40 larger or more prominent areas by population. For each selected neighborhood, I added attributes describing dominant housing type (single-family, townhome, condo), price category (low, mid, high, luxury), typical build era (pre-2000 or 2000s), bedroom counts, notes, and data sources based on real estate websites.
+
+The final application is built with Leaflet. Each neighborhood is represented by a colored house icon, where color indicates price category. Clicking a house updates a details panel that summarizes the neighborhood’s housing characteristics in a clear, map-based format.
+
 ## Project overview
 
 This project is an interactive web map that highlights a sample of home‐buying neighborhoods in Cary, North Carolina. It is designed for prospective homebuyers who are trying to understand **where** different types of neighborhoods are located and how they differ in terms of **price**, **housing type**, **build era**, and **typical bedrooms**.
@@ -139,5 +149,6 @@ This file is what the Leaflet web map loads.
   - **Typical bedrooms**
   - **Notes** (summary description)
   - **Source** (main websites used)
+
 
 This design keeps the map itself clean, while still providing detailed information in a readable, accessible panel.
